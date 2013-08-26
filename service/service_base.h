@@ -204,13 +204,6 @@ struct ConfigurationService {
             data->watchReferences = 0;
         }
 
-        std::shared_ptr<Data> * get()
-        {
-            if (!data)
-                return nullptr;
-            return new std::shared_ptr<Data>(data);
-        }
-
         ~Watch()
         {
             if (data) {
@@ -222,7 +215,6 @@ struct ConfigurationService {
 
         JML_IMPLEMENT_OPERATOR_BOOL(data.get());
 
-    private:
         std::shared_ptr<Data> data;
     };
 

@@ -328,20 +328,20 @@ fixPath(const std::string & path)
     return string(path, 0, last);
 }
 
-auto ZookeeperConnection::getCallback(CallbackType watch, const string& path, void* data) -> Callback*
+auto ZookeeperConnection::wrapCallback(Callback watch) -> Callback*
 {
     if (!watch)
         return nullptr;
 
     auto item = make_unique<Callback>();
     auto cb = item.get();
-    //cerr << "Callback! new " << path << " " << data << endl;
+    //cerr << "Callback! new " << endl;
     *cb = [=](int type)
     {
         if (type == ZOO_SESSION_EVENT) // Might be sent multiple times.
             return;
-        //cerr << "Callback! " << type << " " << path << " " << data << endl;
-        watch(type, path, data);
+        //cerr << "Callback! " << type << endl;
+        watch(type);
         this->callbacks.erase(cb);
     };
     callbacks[cb] = move(item);
@@ -350,14 +350,14 @@ auto ZookeeperConnection::getCallback(CallbackType watch, const string& path, vo
 
 bool
 ZookeeperConnection::
-nodeExists(const std::string & path_, CallbackType watcher, void * watcherData)
+nodeExists(const std::string & path_, Callback watcher)
 {
     string path = fixPath(path_);
 
     int retries = 0;
     for (;;) {
 
-        Callback * cb = getCallback(watcher, path, watcherData);
+        Callback * cb = wrapCallback(watcher);
 
         int res = zoo_wexists(handle, path.c_str(), zk_callback,
                               cb, 0 /* stat */);
@@ -372,7 +372,7 @@ nodeExists(const std::string & path_, CallbackType watcher, void * watcherData)
 
 std::string
 ZookeeperConnection::
-readNode(const std::string & path_, CallbackType watcher, void * watcherData)
+readNode(const std::string & path_, Callback watcher)
 {
     string path = fixPath(path_);
 
@@ -382,7 +382,7 @@ readNode(const std::string & path_, CallbackType watcher, void * watcherData)
     int retries = 0;
     for (;;bufLen = 16384) {
 
-        Callback * cb = getCallback(watcher, path, watcherData);
+        Callback * cb = wrapCallback(watcher);
 
         int res = zoo_wget(handle, path.c_str(), zk_callback, cb,
                            buf, &bufLen, 0 /* stat */);
@@ -417,8 +417,7 @@ writeNode(const std::string & path, const std::string & value)
 
 std::vector<std::string>
 ZookeeperConnection::
-getChildren(const std::string & path_, bool failIfNodeMissing,
-            CallbackType watcher, void * watcherData)
+getChildren(const std::string & path_, bool failIfNodeMissing, Callback watcher)
 {
     string path = fixPath(path_);
 
@@ -430,7 +429,7 @@ getChildren(const std::string & path_, bool failIfNodeMissing,
 
     int retries = 0;
     for (;;) {
-        Callback * cb = getCallback(watcher, path, watcherData);
+        Callback * cb = wrapCallback(watcher);
 
         int res = zoo_wget_children(handle, path.c_str(),
                                     zk_callback, cb,
@@ -448,7 +447,7 @@ getChildren(const std::string & path_, bool failIfNodeMissing,
             // set it up here.
             if (watcher) {
 
-                Callback * cb = getCallback(watcher, path, watcherData);
+                Callback * cb = wrapCallback(watcher);
 
                 res = zoo_wexists(handle, path.c_str(), zk_callback, cb, 0);
                 //cerr << "wexists handler returned " << res << endl;

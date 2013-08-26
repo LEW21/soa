@@ -30,7 +30,6 @@ namespace Datacratic {
 struct ZookeeperConnection {
 
     typedef std::function<void(int)> Callback; // (type)
-    typedef std::function<void(int, const std::string&, void*)> CallbackType; // (type, (deprecated) path, (deprecated) data)
 
     ZookeeperConnection();
     ~ZookeeperConnection() { close(); }
@@ -81,21 +80,14 @@ struct ZookeeperConnection {
     void removePath(const std::string & path);
 
     /** Return if the node exists or not. */
-    bool nodeExists(const std::string & path,
-                    CallbackType watcher = 0,
-                    void * watcherData = 0);
+    bool nodeExists(const std::string & path, Callback watcher = Callback{});
 
-    std::string readNode(const std::string & path,
-                         CallbackType watcher = 0,
-                         void * watcherData = 0);
+    std::string readNode(const std::string & path, Callback watcher = Callback{});
 
     void writeNode(const std::string & path, const std::string & value);
 
     std::vector<std::string>
-    getChildren(const std::string & path,
-                bool failIfNodeMissing = true,
-                CallbackType watcher = 0,
-                void * watcherData = 0);
+    getChildren(const std::string & path, bool failIfNodeMissing = true, Callback watcher = Callback{});
 
     static void eventHandlerFn(zhandle_t * handle,
                                int event,
@@ -132,7 +124,7 @@ struct ZookeeperConnection {
 
 private:
     std::unordered_map<Callback*, std::unique_ptr<Callback>> callbacks;
-    Callback* getCallback(CallbackType watch, const std::string& path, void* data);
+    Callback* wrapCallback(Callback);
 };
 
 } // namespace Datacratic

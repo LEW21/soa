@@ -10,6 +10,7 @@
 #include "jml/utils/exc_assert.h"
 #include <boost/algorithm/string.hpp>
 #include <sys/utsname.h>
+#include <cxxcompat/optional>
 
 using namespace std;
 using namespace ML;
@@ -49,40 +50,32 @@ std::string printZookeeperState(int state)
     return ML::format("ZOO_UNKNOWN_STATE(%d)", state);
 }
 
-void
-watcherFn(int type, std::string const & path, void * watcherCtx)
+auto translateType(int zookeeper) -> optional<ConfigurationService::ChangeType>
 {
-    typedef std::shared_ptr<ConfigurationService::Watch::Data> SharedPtr;
-    std::unique_ptr<SharedPtr> data(reinterpret_cast<SharedPtr *>(watcherCtx));
-#if 0
-    cerr << "type = " << printZookeeperEventType(type)
-         << " state = " << printZookeeperState(state)
-         << " path = " << path << " context "
-         << watcherCtx << " data " << data->get() << endl;
-#endif
+	if (zookeeper == ZOO_CREATED_EVENT)
+		return ConfigurationService::CREATED;
+	if (zookeeper == ZOO_DELETED_EVENT)
+		return ConfigurationService::DELETED;
+	if (zookeeper == ZOO_CHANGED_EVENT)
+		return ConfigurationService::VALUE_CHANGED;
+	if (zookeeper == ZOO_CHILD_EVENT)
+		return ConfigurationService::NEW_CHILD;
 
-    ConfigurationService::ChangeType change;
-    if (type == ZOO_CREATED_EVENT)
-        change = ConfigurationService::CREATED;
-    if (type == ZOO_DELETED_EVENT)
-        change = ConfigurationService::DELETED;
-    if (type == ZOO_CHANGED_EVENT)
-        change = ConfigurationService::VALUE_CHANGED;
-    if (type == ZOO_CHILD_EVENT)
-        change = ConfigurationService::NEW_CHILD;
-
-    auto & item = *data;
-    if (item->watchReferences > 0) {
-        item->onChange(path, change);
-    }
+	return nullopt;
 }
 
-ZookeeperConnection::CallbackType
-getWatcherFn(const ConfigurationService::Watch & watch)
+auto getWatcherFn(const ConfigurationService::Watch & watch, const string& path) -> ZookeeperConnection::Callback
 {
     if (!watch)
         return nullptr;
-    return watcherFn;
+
+	auto item = watch.data;
+	return [item, path](int type)
+	{
+		auto t = translateType(type);
+		if (t && item->watchReferences > 0)
+			item->onChange(path, *t);
+	};
 }
 
 
@@ -137,8 +130,7 @@ ZookeeperConfigurationService::
 getJson(const std::string & key, Watch watch)
 {
     ExcAssert(zoo);
-    auto val = zoo->readNode(prefix + key, getWatcherFn(watch),
-                             watch.get());
+    auto val = zoo->readNode(prefix + key, getWatcherFn(watch, prefix + key));
     try {
         if (val == "")
             return Json::Value();
@@ -187,8 +179,7 @@ getChildren(const std::string & key,
     //cerr << "getChildren " << key << " watch " << watch << endl;
     return zoo->getChildren(prefix + key,
                             false /* fail if not there */,
-                            getWatcherFn(watch),
-                            watch.get());
+                            getWatcherFn(watch, prefix + key));
 }
 
 bool
