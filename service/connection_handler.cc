@@ -152,6 +152,8 @@ checkMagic() const
 /* PASSIVE CONNECTION HANDLER                                                */
 /*****************************************************************************/
 
+std::function<void (PassiveConnectionHandler::Direction, const string&)> PassiveConnectionHandler::logger = {};
+
 void
 PassiveConnectionHandler::
 doError(const std::string & error)
@@ -206,6 +208,7 @@ handleInput()
             if (errno == EINTR) continue; // interrupted
             if (errno == EAGAIN || errno == EWOULDBLOCK) break; // no data
 
+            if (done && logger) logger(Direction::In,buf);
             if (done) handleData(buf);
             doError("read on " + get_endpoint()->name() + ": " + string(strerror(errno)));
             return;
@@ -221,6 +224,7 @@ handleInput()
 
         buf.resize(done);
 
+        if (done && logger) logger(Direction::In, buf);
         if (done) handleData(buf);
     } catch (...) {
         if (disconnected) {
@@ -322,6 +326,7 @@ send(const std::string & str,
      NextAction next,
      OnWriteFinished onWriteFinished)
 {
+    if (logger) logger(Direction::Out, str);
     //cerr << "message being sent<" << str << "> on handle" << transport().getHandle() <<  endl;
     transport().assertLockedByThisThread();
 

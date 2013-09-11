@@ -234,6 +234,9 @@ private:
 
 struct PassiveConnectionHandler: public ConnectionHandler {
 
+    enum class Direction { In, Out };
+    static std::function<void (Direction, const std::string&)> logger;
+
     PassiveConnectionHandler()
         : inSend(false)
     {
